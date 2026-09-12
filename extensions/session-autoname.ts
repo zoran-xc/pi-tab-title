@@ -2,10 +2,14 @@
  * session-autoname —— 按对话内容自动维护 pi 会话标题
  *
  * 做的事：
- *   1. 首轮对话后自动起名（按 naming-rules.md 里你写的命名习惯）
- *   2. 之后每一轮结束都让模型重新判断「是否该改标题」，只喂对话结论
- *      （用户说的话 + 助手给的结论），不喂工具调用链和完整上下文
- *   3. 名字写进 pi 的会话名 → pi 自动同步到终端窗口标题
+ *   1. 没有标题时（首轮）立即起名，按 naming-rules.md 里你写的命名习惯
+ *   2. 之后按节奏重新评估，只喂对话结论（用户说的话 + 助手的结论），
+ *      不喂工具调用链、工具输出和 thinking
+ *      节奏：上一轮结束后隔了 idleRenameAfterMs（默认 10 分钟）以上才回来 → 重新评估
+ *            连续对话 → 每 updateEveryTurns（默认 5）轮评估一次
+ *   3. 模型同时给出 status（进行中/待审核/已完成/阻塞）与 project（仅当聊的不是当前工作区）
+ *   4. 名字写进 pi 的会话名 → pi 自动同步到终端窗口标题；
+ *      若配了 titleTemplate，再用「名字 + 状态 + 非当前项目 + 旧标题」覆盖一次终端标题
  *
  * 配置：~/.pi/agent/session-autoname/config.json（改动即时生效，不用重启 pi）
  * 规则：~/.pi/agent/session-autoname/naming-rules.md（你写命名习惯）
@@ -48,8 +52,10 @@ type Config = {
 	maxTokens: number;
 	/** 单次命名请求超时（毫秒） */
 	timeoutMs: number;
-	/** 每 N 轮重新评估一次标题（1 = 每轮都评估） */
+	/** 连续对话时每 N 轮重新评估一次标题 */
 	updateEveryTurns: number;
+	/** 上一轮结束到这一轮开始隔了这么久（毫秒），就重新评估一次标题 */
+	idleRenameAfterMs: number;
 	/** 两次命名请求的最小间隔（毫秒），防止连发消息时反复改名 */
 	minMsBetweenUpdates: number;
 	/** 每条消息喂给模型的字符上限 */
@@ -60,8 +66,18 @@ type Config = {
 	maxMessages: number;
 	/** 是否把助手的回复也喂给模型（关掉就只看用户说了什么） */
 	includeAssistant: boolean;
-	/** 终端标题模板，支持 {name} {status} {project} {turns}；空字符串 = 用 pi 默认标题 */
+	/**
+	 * 终端标题模板。占位符：
+	 *   {name}    当前标题
+	 *   {status}  进行中 / 待审核 / 已完成 / 阻塞
+	 *   {project} 仅当「聊的项目" 当前工作区」时渲染成 @项目短名，否则为空
+	 *   {prev}    之前用过的标题，形如 (旧1 → 旧2)
+	 *   {turns}   已聊轮数
+	 * 空字符串 = 用 pi 默认标题。
+	 */
 	titleTemplate: string;
+	/** {prev} 里最多带几个旧标题 */
+	prevTitleCount: number;
 	/** 把当前 git 分支写进给模型的上下文（便于判断"聊的项目 vs 所处工作区"） */
 	includeGitBranch: boolean;
 	/** print 模式（pi -p）下不自动命名，避免额外花销 */
@@ -78,13 +94,15 @@ const DEFAULT_CONFIG: Config = {
 	extraInstructions: "",
 	maxTokens: 200,
 	timeoutMs: 20000,
-	updateEveryTurns: 1,
+	updateEveryTurns: 5,
+	idleRenameAfterMs: 600000,
 	minMsBetweenUpdates: 30000,
 	perMessageChars: 1200,
 	maxDigestChars: 6000,
 	maxMessages: 30,
 	includeAssistant: true,
-	titleTemplate: "",
+	titleTemplate: "π - {name}{project} {status} {prev}",
+	prevTitleCount: 2,
 	includeGitBranch: true,
 	skipWhenNoUI: true,
 	debug: false,
@@ -107,18 +125,21 @@ const DEFAULT_RULES = `# 命名习惯（写给模型看，随便改）
 
 1. **项目/代码库名** —— 用短名，如 \`zeth\`、\`ymesh\`、\`笔记\`
 2. **当前在做什么** —— 动词 + 对象，如 \`支付修复\`、\`标题插件\`、\`周计划\`
-3. **状态** —— 进行中 / 待验收 / 已完成 / 阻塞（放 status 字段，不要全塞进 title）
-4. 之前做过什么、接下来做什么 —— 只在标题里能塞下时体现
+3. 之前做过什么、接下来做什么 —— 只在标题里能塞下时体现
+
+> 状态（进行中/待审核/已完成/阻塞）和「项目是不是当前目录」由单独字段承载，
+> 不要为了塞这些而牺牲 title 里的「项目 + 动作」。
 
 ## 特别判断
 
 - 如果**对话聊的项目 ≠ 我当前所处的工作区**（例如我在 zeth-ai 目录里聊 ymesh），
-  标题必须优先写出「聊的那个项目」，避免我在多个终端间混淆。
+  \`project\` 字段填成 \`ymesh\`；是同一个项目就填空字符串。
 - 如果话题发生了迁移（先修支付，改着改着开始调 API 调用），
   标题要跟着迁移到**当下正在做的事**，别停在最开始那件事上。
-- 一件事做完了、等我验收 → status 用「待验收」；确认完成 → 「已完成」；
+- 一件事做完了、等我审核 → status 用「待审核」；已确认完成 → 「已完成」；
   卡住了 → 「阻塞」；正常推进 → 「进行中」。
 - 任务没变、篇幅变长 → 不改标题（changed=false），不要无意义地抖动。
+- 之前用过的标题我会显示在括号里，所以换掉旧标题不会丢信息。
 `;
 
 // ─────────────────────────────────────────── 默认文件自举
@@ -262,28 +283,41 @@ function readGitBranch(cwd: string): string {
 type State = {
 	/** 本会话的名字是我们起的（持久化标记过） */
 	managed: boolean;
-	/** 用户手动改过名 → 不再自动改 */
-	userOwned: boolean;
 	/** /autoname off */
 	disabled: boolean;
 	turns: number;
 	lastRunAt: number;
+	/** 上一轮结束的时刻，用来判断「离开了多久才回来」 */
+	lastTurnEndedAt: number;
+	/** 上一轮结束后隔了很久才继续 → 这轮结束就重新评估标题 */
+	idleResume: boolean;
+	/** 上一轮被中断或出错 → 状态强制为「待审核」 */
+	interrupted: boolean;
 	inFlight: boolean;
 	dirty: boolean;
-	lastStatus: string;
+	/** 当前状态标签（进行中/待审核/已完成/阻塞） */
+	status: string;
+	/** 仅当「聊的项目 ≠ 当前工作区」时的项目短名 */
+	project: string;
+	/** 历史标题，旧的在前 */
+	prevTitles: string[];
 	gitBranch: string;
 };
 
 function freshState(): State {
 	return {
 		managed: false,
-		userOwned: false,
 		disabled: false,
 		turns: 0,
 		lastRunAt: 0,
+		lastTurnEndedAt: 0,
+		idleResume: false,
+		interrupted: false,
 		inFlight: false,
 		dirty: false,
-		lastStatus: "",
+		status: "",
+		project: "",
+		prevTitles: [],
 		gitBranch: "",
 	};
 }
@@ -354,7 +388,7 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 	function systemPrompt(cfg: Config): string {
 		const contract = `你是一个会话标题管理器。唯一输出是一个 JSON 对象，不要输出任何其他文字，不要用 markdown 代码块。
 
-{"title":"<标题>","status":"进行中|待验收|已完成|阻塞","changed":true|false}
+{"title":"<标题>","status":"进行中|待审核|已完成|阻塞","project":"<项目短名或空字符串>","changed":true|false}
 
 规则：
 - title ≤ ${cfg.maxChars} 个字符（中文/英文/数字/符号都按 1 个字符算）。
@@ -364,7 +398,9 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 - 如果 <current-title> 是 none，说明本会话还没有标题：必须给出新标题并设 changed=true。
 - 绝不要把 none / 未命名 / 无标题 / 新会话 这类占位词当成标题输出。
 - 话题迁移（换了项目 / 换了任务类型 / 从功能开发转成修 bug）时必须改名。
-- status 表示当前进展，独立于 title，不要为了塞状态而牺牲 title 里的项目与动作。`;
+- status 表示当前进展，独立于 title，不要为了塞状态而牺牲 title 里的项目与动作。
+- project 只在「对话讨论的项目 ≠ <workspace> 里的项目」时才填短名（2-8 字符）；同一个项目填空字符串 ""。
+- 用户没有提出新要求、只是在追问或确认时，不要把进行中的事改成待审核。`;
 		return [contract, readRules(cfg), cfg.extraInstructions].filter((s) => s && s.trim()).join("\n\n");
 	}
 
@@ -373,14 +409,18 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		const head = [
 			`<workspace cwd="${ctx.cwd}" project="${project}"${state.gitBranch ? ` gitBranch="${state.gitBranch}"` : ""}/>`,
 			`<current-title>${current?.trim() ? current.trim() : "none"}</current-title>`,
+			`<current-status>${state.status || "未知"}</current-status>`,
 			`<turn>${state.turns}</turn>`,
 		];
+		if (state.interrupted) {
+			head.push("<note>上一轮被中断或出错，未正常收尾：status 必须是 待审核。</note>");
+		}
 		return `${head.join("\n")}\n\n<conversation>\n${digest}\n</conversation>\n\n按你的规则输出 JSON。`;
 	}
 
 	// ── 模型调用 + 解析
 
-	type Named = { title: string; status: string; changed: boolean };
+	type Named = { title: string; status: string; project: string; changed: boolean };
 
 	function parseResult(text: string, current: string | undefined): Named | null {
 		const start = text.indexOf("{");
@@ -392,6 +432,7 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 					return {
 						title: normalizeTitle(obj.title),
 						status: typeof obj.status === "string" ? normalizeTitle(obj.status) : "",
+						project: typeof obj.project === "string" ? normalizeTitle(obj.project) : "",
 						changed: obj.changed !== false,
 					};
 				}
@@ -402,7 +443,7 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		const firstLine = text.split("\n").map((l) => l.trim()).find((l) => l.length > 0);
 		if (!firstLine) return null;
 		const cleaned = normalizeTitle(firstLine);
-		return cleaned ? { title: cleaned, status: "", changed: !sameTitle(cleaned, current) } : null;
+		return cleaned ? { title: cleaned, status: "", project: "", changed: !sameTitle(cleaned, current) } : null;
 	}
 
 	async function askModel(
@@ -434,50 +475,86 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		return parseResult(text, current);
 	}
 
+	// ── 终端标题
+
+	/** 把模板补位后留下的空位和重复分隔符收拾干净 */
+	function pruneTemplate(text: string): string {
+		return text
+			.replace(/\s*[-·|]\s*(?=[-·|])/g, " ")
+			.replace(/\s*[（(]\s*[)）]\s*/g, " ")
+			.replace(/\s{2,}/g, " ")
+			.replace(/^\s*[-·|]\s*/, "")
+			.replace(/\s*[-·|]\s*$/, "")
+			.trim();
+	}
+
+	function renderTerminalTitle(cfg: Config, ctx: ExtensionContext, result: Named, current: string | undefined): string {
+		const name = result.changed && !sameTitle(result.title, current) ? result.title : (current ?? result.title);
+		const prev = state.prevTitles.slice(-Math.max(0, cfg.prevTitleCount));
+		// 聊的项目就是当前工作区时不重复显示项目名
+		const workspace = (path.basename(ctx.cwd) || "").toLowerCase();
+		const offProject = result.project && result.project.toLowerCase() !== workspace ? `@${result.project}` : "";
+		return pruneTemplate(
+			cfg.titleTemplate
+				.replace(/\{name\}/g, name)
+				.replace(/\{status\}/g, result.status || state.status || "")
+				.replace(/\{project\}/g, offProject)
+				.replace(/\{prev\}/g, prev.length ? `(${prev.join(" → ")})` : "")
+				.replace(/\{turns\}/g, String(state.turns)),
+		);
+	}
+
 	// ── 落盘 + 生效
 
-	/** 写入标题；返回是否真的改了名 */
-	function apply(ctx: ExtensionContext, cfg: Config, result: Named, current: string | undefined): boolean {
+	/** 写入标题；返回是否真的改了名，以及渲染出的终端标题 */
+	function apply(
+		ctx: ExtensionContext,
+		cfg: Config,
+		result: Named,
+		current: string | undefined,
+	): { renamed: boolean; terminal: string } {
 		state.managed = true;
+
+		const renamed = result.changed && !sameTitle(result.title, current);
+		if (renamed && current?.trim()) {
+			state.prevTitles.push(current.trim());
+			state.prevTitles = state.prevTitles.filter((t, i, all) => i === 0 || t !== all[i - 1]).slice(-8);
+		}
+		if (result.status) state.status = result.status;
+		state.project = result.project;
+
 		pi.appendEntry(MARKER, {
 			title: result.title,
-			status: result.status,
+			status: state.status,
+			project: state.project,
+			prev: state.prevTitles.slice(-3),
 			turns: state.turns,
 			at: new Date().toISOString(),
 		});
 
-		const renamed = !sameTitle(result.title, current) && result.changed;
 		if (renamed) {
 			expectingSelfRename = result.title;
 			pi.setSessionName(result.title); // pi 会自动把终端标题刷成 "π - <名字> - <目录>"
 		}
 
-		// 需要更丰富的终端标题时，在 pi 刷完之后再覆盖一次（同步调用，后写的赢）
+		// 在 pi 刷完之后再覆盖一次（同步调用，后写的赢）：状态、非当前项目、旧名字都在这里体现
+		let terminal = "";
 		if (cfg.titleTemplate) {
-			const name = renamed || !current ? result.title : current;
-			const rendered = cfg.titleTemplate
-				.replace(/\{name\}/g, name)
-				.replace(/\{status\}/g, result.status || state.lastStatus || "")
-				.replace(/\{project\}/g, path.basename(ctx.cwd))
-				.replace(/\{turns\}/g, String(state.turns))
-				.replace(/\s{2,}/g, " ")
-				.replace(/(^|\s)[-·|]\s*$/g, "")
-				.trim();
-			if (rendered) ctx.ui.setTitle(rendered);
+			terminal = renderTerminalTitle(cfg, ctx, result, current);
+			if (terminal) ctx.ui.setTitle(terminal);
 		}
 
-		if (result.status) state.lastStatus = result.status;
 		if (cfg.debug) {
-			ctx.ui.notify(`标题：${result.title}${renamed ? "（已更新）" : "（未变）"}`, "info");
+			ctx.ui.notify(`标题：${result.title}${renamed ? "（已更新）" : "（未变）"}｜${state.status}`, "info");
 		}
-		return renamed;
+		return { renamed, terminal };
 	}
 
 	// ── 命名主流程
 
 	async function runRename(ctx: ExtensionContext, force: boolean): Promise<void> {
 		const cfg = readConfig();
-		if (!cfg.enabled || state.disabled || (state.userOwned && !force)) return;
+		if (!cfg.enabled || state.disabled) return;
 		if (cfg.skipWhenNoUI && !ctx.hasUI) {
 			trace(cfg, "skip: no UI and skipWhenNoUI=true");
 			return;
@@ -499,6 +576,7 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 
 		state.inFlight = true;
 		state.lastRunAt = Date.now();
+		const wasInterrupted = state.interrupted;
 		const current = pi.getSessionName();
 		trace(cfg, `calling model ${model.provider}/${model.id}`);
 		try {
@@ -522,21 +600,24 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 			if (!result.title) return;
 			// 会话还没名字时不能信 changed=false：模型很容易把「沿用原标题」当成字面意思照做
 			if (!current?.trim()) result = { ...result, changed: true };
+			// 被中断的一轮不可能算完成，状态是确定性的，不交给模型赌
+			if (wasInterrupted) result = { ...result, status: "待审核" };
 			if (PLACEHOLDER_TITLES.has(result.title.toLowerCase())) {
 				log(`skip: placeholder title "${result.title}"`);
 				return;
 			}
-			const renamed = apply(ctx, cfg, result, current);
+			const outcome = apply(ctx, cfg, result, current);
 			log(
-				renamed
-					? `renamed: "${current ?? ""}" -> "${result.title}" (turns=${state.turns})`
-					: `kept: "${current ?? ""}" (model said changed=false, turns=${state.turns})`,
+				`${outcome.renamed ? "renamed" : "kept"}: "${current ?? ""}" -> "${result.title}"  [${result.status}${result.project ? ` @${result.project}` : ""}] turns=${state.turns} prev=${state.prevTitles.length}${outcome.terminal ? ` terminal="${outcome.terminal}"` : ""}`,
 			);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			log(`error: ${message}`);
 			if (cfg.debug) ctx.ui.notify(`自动命名失败：${message}`, "warning");
 		} finally {
+			// 这两个标志描述「刚结束的那一轮」，用完即消（构建提示词时还得看得到）
+			state.idleResume = false;
+			state.interrupted = false;
 			state.inFlight = false;
 			if (state.dirty) {
 				state.dirty = false;
@@ -554,14 +635,24 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		if (typeof timer === "object" && "unref" in timer) timer.unref?.();
 	}
 
+	/** 该不该现在重新评估标题 */
+	function shouldRename(force: boolean): boolean {
+		if (force) return true;
+		if (!pi.getSessionName()?.trim()) return true; // 还没有标题：第一轮就起名
+		if (state.idleResume) return true; // 上一轮结束后离开很久才回来
+		return state.turns % Math.max(1, readConfig().updateEveryTurns) === 0;
+	}
+
 	function maybeRename(ctx: ExtensionContext, force: boolean): void {
 		const cfg = readConfig();
-		if (!cfg.enabled || state.disabled || (state.userOwned && !force)) {
-			trace(cfg, `maybeRename: skip (enabled=${cfg.enabled} disabled=${state.disabled} userOwned=${state.userOwned} force=${force})`);
+		if (!cfg.enabled || state.disabled) {
+			trace(cfg, `maybeRename: skip (enabled=${cfg.enabled} disabled=${state.disabled})`);
 			return;
 		}
-		const every = Math.max(1, cfg.updateEveryTurns);
-		if (!force && cfg.updateEveryTurns > 1 && state.turns % every !== 0) return;
+		if (!shouldRename(force)) {
+			trace(cfg, `maybeRename: skip (turns=${state.turns} 每 ${cfg.updateEveryTurns} 轮 / idleResume=${state.idleResume})`);
+			return;
+		}
 		const wait = cfg.minMsBetweenUpdates - (Date.now() - state.lastRunAt);
 		trace(cfg, `maybeRename: schedule in ${Math.max(0, wait)}ms (turns=${state.turns})`);
 		schedule(ctx, !force && wait > 0 ? wait : 0, force);
@@ -575,18 +666,19 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 
 		const entries = ctx.sessionManager.getEntries() as unknown as LooseEntry[];
 		state.managed = entries.some((e) => e.type === "custom" && e.customType === MARKER);
+		// 从最近一条托管标记里恢复状态与历史标题，这样重启/恢复后括号里还能看到之前干过什么
 		for (let i = entries.length - 1; i >= 0; i -= 1) {
-			const data = entries[i]?.data as { status?: string } | undefined;
-			if (entries[i]?.customType === MARKER && typeof data?.status === "string") {
-				state.lastStatus = data.status;
-				break;
-			}
+			if (entries[i]?.customType !== MARKER) continue;
+			const data = entries[i]?.data as { status?: string; project?: string; prev?: unknown } | undefined;
+			if (typeof data?.status === "string") state.status = data.status;
+			if (typeof data?.project === "string") state.project = data.project;
+			if (Array.isArray(data?.prev)) state.prevTitles = data.prev.filter((t): t is string => typeof t === "string");
+			break;
 		}
 
-		// 已有名字但不是我们起的 → 尊重用户，不动
-		if (pi.getSessionName() && !state.managed) state.userOwned = true;
-
-		if (event.reason === "new" && pi.getSessionName()) state.userOwned = true;
+		// 插件开着就接管命名：旧名字（不管谁起的）进历史，显示在括号里
+		const existing = pi.getSessionName()?.trim();
+		if (existing && !state.managed && !state.prevTitles.includes(existing)) state.prevTitles.push(existing);
 
 		const cfg = readConfig();
 		if (cfg.includeGitBranch) state.gitBranch = readGitBranch(ctx.cwd);
@@ -599,18 +691,29 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 			return;
 		}
 		expectingSelfRename = null;
-		if (!name.trim()) {
-			// 用户清空了名字 → 交还给自动命名
-			state.userOwned = false;
-			return;
+		if (!name.trim()) return;
+		// 不是我们改的（手动 /name、RPC、其他扩展）：记进历史，但不再让位 —— 插件开着就始终由它维护
+		if (!state.prevTitles.includes(name)) state.prevTitles.push(name);
+		log(`external rename: "${name}" (recorded as previous title)`);
+	});
+
+	pi.on("turn_start", async () => {
+		// 上一轮结束到我这次开口之间隔了很久 → 这一轮收尾时重新评估标题
+		const cfg = readConfig();
+		if (state.lastTurnEndedAt && Date.now() - state.lastTurnEndedAt > cfg.idleRenameAfterMs) {
+			state.idleResume = true;
+			trace(cfg, `idle resume: ${Math.round((Date.now() - state.lastTurnEndedAt) / 60000)} 分钟`);
 		}
-		// 不是我们改的 → 用户手动命名，此后不再自动改名
-		state.userOwned = true;
-		log(`user rename detected: "${name}" (auto naming paused for this session)`);
 	});
 
 	pi.on("turn_end", async (event) => {
 		state.turns = Math.max(state.turns, (event.turnIndex ?? 0) + 1);
+		state.lastTurnEndedAt = Date.now();
+		const message = event.message as { role?: string; stopReason?: string } | undefined;
+		trace(readConfig(), `turn_end turns=${state.turns} role=${message?.role ?? "?"} stop=${message?.stopReason ?? "?"}`);
+		if (message?.role === "assistant" && (message.stopReason === "aborted" || message.stopReason === "error")) {
+			state.interrupted = true;
+		}
 	});
 
 	pi.on("agent_settled", async (_event, ctx) => {
@@ -622,8 +725,7 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		}
 		// 无界面模式（-p / json）：没有界面可阻塞，必须等它跑完，否则进程退出前就丢了
 		const cfg = readConfig();
-		if (!cfg.enabled || state.disabled || state.userOwned) return;
-		if (cfg.updateEveryTurns > 1 && state.turns % Math.max(1, cfg.updateEveryTurns) !== 0) return;
+		if (!cfg.enabled || state.disabled || !shouldRename(false)) return;
 		await runRename(ctx, false);
 	});
 
@@ -647,14 +749,12 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 			}
 			if (sub === "on") {
 				state.disabled = false;
-				state.userOwned = false;
 				ctx.ui.notify("自动命名已开启（本会话）", "info");
 				return;
 			}
 			if (sub === "now") {
-				state.userOwned = false;
 				await runRename(ctx, true);
-				ctx.ui.notify(`标题：${pi.getSessionName() ?? "(未命名)"}`, "info");
+				ctx.ui.notify(`标题：${pi.getSessionName() ?? "(未命名)"}｜${state.status}`, "info");
 				return;
 			}
 			if (sub === "config") {
@@ -667,16 +767,15 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 				return;
 			}
 
-			const stateText = state.disabled
-				? "已关闭"
-				: state.userOwned
-					? "已让位（你手动命名过，用 /autoname on 收回）"
-					: "运行中";
+			const stateText = state.disabled ? "已关闭" : "运行中";
+			const idleMin = Math.round(cfg.idleRenameAfterMs / 60000);
 			ctx.ui.notify(
 				[
-					`标题：${pi.getSessionName() ?? "(未命名)"}`,
-					`状态：${stateText}｜已聊 ${state.turns} 轮`,
-					`模型：${resolveModel(ctx)?.id ?? "(无)"}｜上限 ${cfg.maxChars} 字符｜每 ${cfg.updateEveryTurns} 轮评估`,
+					`标题：${pi.getSessionName() ?? "(未命名)"}｜${state.status || "(无状态)"}`,
+					`状态：${stateText}｜已聊 ${state.turns} 轮${state.project ? `｜聊的不是当前工作区：${state.project}` : ""}`,
+					`节奏：空闲 >${idleMin} 分钟　或　每 ${cfg.updateEveryTurns} 轮`,
+					`历史标题：${state.prevTitles.length ? state.prevTitles.join(" → ") : "(无)"}`,
+					`模型：${resolveModel(ctx)?.id ?? "(无)"}｜上限 ${cfg.maxChars} 字符`,
 					`规则：${cfg.rulesFile}｜配置：${CONFIG_PATH}`,
 				].join("\n"),
 				"info",
