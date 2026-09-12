@@ -101,7 +101,7 @@ const DEFAULT_CONFIG: Config = {
 	maxDigestChars: 6000,
 	maxMessages: 30,
 	includeAssistant: true,
-	titleTemplate: "π - {name}{project} {status} {prev}",
+	titleTemplate: "π - {name}{project} {prev}",
 	prevTitleCount: 2,
 	includeGitBranch: true,
 	skipWhenNoUI: true,

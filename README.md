@@ -1,20 +1,22 @@
 # pi-session-autoname
 
-**让 pi 的会话标题自己长出来** —— 首轮对话后自动起名，之后随话题迁移持续修订，只喂对话结论、不喂工具链。
+**让 pi 的会话标题自己长出来** —— 首轮自动起名，之后按节奏重新评估：只喂对话结论、不喂工具链。
 
-会话名不是可有可无的装饰：pi 会把它同步到**终端窗口标题**（`π - <会话名> - <目录>`）、`/resume` 选择器、footer。终端开多了以后，一眼能不能认出「这个标签页在干什么」，全靠它。
+会话名不是可有可无的装饰：pi 会把它同步到**终端窗口标题**、`/resume` 选择器、footer。终端开多了以后，一眼能不能认出「这个标签页在干什么」，全靠它。
 
 ```
-π - zeth 支付修复 - zeth-ai
-π - ymesh 标题插件 - zeth-ai      ← 在别的项目目录里聊 ymesh，也认得出
-π - zeth 待验收 - zeth-ai         ← 状态跟着进展走
+π - zeth 支付修复 (zeth 登录排查)
+π - ymesh 索引优化@ymesh (zeth API超时 → zeth 支付修复)
 ```
+
+左边是标题，`@ymesh` 只在「聊的项目 ≠ 当前工作区」时出现，括号里是**之前用过的标题**（旧 → 新）。
+状态（进行中/待审核/…）默认**不显示**，只记在日志与 `/autoname` 里；想显示就在模板里加 `{status}`。
 
 ## 安装
 
 ```bash
 # 从 git 安装（推荐固定 tag 或 commit）
-pi install git:github.com/zoran-xc/pi-session-autoname@v0.1.0
+pi install git:github.com/zoran-xc/pi-session-autoname@v0.2.1
 
 # 本地开发
 pi install /path/to/pi-session-autoname
@@ -51,12 +53,12 @@ pi -e /path/to/pi-session-autoname/extensions/session-autoname.ts
 | 占位符 | 渲染效果 |
 | --- | --- |
 | `{name}` | 当前标题 |
-| `{status}` | 进行中 / 待审核 / 已完成 / 阻塞 |
+| `{status}` | 进行中 / 待审核 / 已完成 / 阻塞（默认模板里没用；状态看着吵，想显示就自己加） |
 | `{project}` | **仅当「聊的项目 ≠ 当前工作区」** 时渲染成 `@项目短名`，否则为空 |
 | `{prev}` | 之前用过的标题，形如 `(zeth API超时 → zeth 支付修复)` |
 | `{turns}` | 已聊轮数 |
 
-占位符渲染为空时会自动收掳多余的分隔符和空括号（`π - {name} {status}` 在无状态时不会变成 `π - xx - `）。
+占位符渲染为空时会自动收拾多余的分隔符和空括号（`π - {name} {status}` 在无状态时不会变成 `π - xx - `）。
 设为空字符串则完全不接管终端标题，用 pi 自己的 `π - <会话名> - <目录>`。
 
 > VS Code 集成终端默认不显示程序设的标题，需要设 `"terminal.integrated.tabs.title": "${sequence}"`。
@@ -82,7 +84,7 @@ pi -e /path/to/pi-session-autoname/extensions/session-autoname.ts
 | `minMsBetweenUpdates` | `30000` | 两次改名请求的最小间隔，防连发消息反复改名 |
 | `includeAssistant` | `true` | 是否把助手回复也喂给模型 |
 | `perMessageChars` / `maxDigestChars` / `maxMessages` | `1200` / `6000` / `30` | 摘要体积控制 |
-| `titleTemplate` | `π - {name}{project} {status} {prev}` | 终端标题模板，见上 |
+| `titleTemplate` | `π - {name}{project} {prev}` | 终端标题模板，见上 |
 | `prevTitleCount` | `2` | `{prev}` 里最多带几个旧标题 |
 | `includeGitBranch` | `true` | 把当前 git 分支放进上下文 |
 | `skipWhenNoUI` | `true` | 非交互模式（`pi -p`）不自动命名，避免额外花销 |
@@ -107,8 +109,8 @@ pi -e /path/to/pi-session-autoname/extensions/session-autoname.ts
 2. 按上面三条节奏决定要不要重新评估，把**对话结论**喂给模型：只取 user 与 assistant 的文本块，跳过 `toolCall` 参数、工具输出、thinking。
 3. 模型返回 `{"title","status","project","changed"}`；`changed=false` 就只更新状态与终端标题、不动会话名。
 4. 超长先让模型自己压缩一次，还超就硬截断。
-5. 写 `pi.setSessionName()` → pi 自动刷新终端标题；配了 `titleTemplate` 时再用「名字 + 状态 + 非当前项目 + 旧标题」覆盖一次。
-6. **被中断或出错的一轮**（`stopReason` 为 `aborted` / `error`）状态强制为「待审核」—— 这种事不交给模型赌。
+5. 写 `pi.setSessionName()` → pi 自动刷新终端标题；配了 `titleTemplate` 时再用「名字 + 非当前项目 + 旧标题」覆盖一次。
+6. **被中断或出错的一轮**（`stopReason` 为 `aborted` / `error`）状态强制为「待审核」（只进日志，默认不显示）—— 这种事不交给模型赌。
 
 ## 已知限制
 
