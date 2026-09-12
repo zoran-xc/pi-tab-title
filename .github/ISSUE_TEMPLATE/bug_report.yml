@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        提交前先跑一下 `/autoname status`，并把 `~/.pi/agent/session-autoname/autoname.log` 的最后几行带上 ——
+        提交前先跑一下 `/autoname status`，并把 `~/.pi/agent/pi-tab-title/autoname.log` 的最后几行带上 ——
         里面的 `terminal="…"` 记录会显示终端标题实际被渲染成了什么，多数命名问题看这个就够了。
   - type: input
     id: pi-version
@@ -52,7 +52,7 @@ body:
     id: config
     attributes:
       label: 配置与命名规则
-      description: 贴 `~/.pi/agent/session-autoname/config.json`（可去掉无关项）与 `naming-rules.md`
+      description: 贴 `~/.pi/agent/pi-tab-title/config.json`（可去掉无关项）与 `naming-rules.md`
       render: json
     validations:
       required: false
@@ -60,7 +60,7 @@ body:
     id: log
     attributes:
       label: 相关日志
-      description: "`~/.pi/agent/session-autoname/autoname.log` 的最后 20 行"
+      description: "`~/.pi/agent/pi-tab-title/autoname.log` 的最后 20 行"
       render: text
     validations:
       required: false

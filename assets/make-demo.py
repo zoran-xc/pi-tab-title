@@ -27,7 +27,7 @@ LANGS = {
     "en": {
         "out": "terminal-tabs.png",
         "title": "pi terminal tabs: before vs after",
-        "subtitle": "pi-session-autoname · session titles that follow the actual work",
+        "subtitle": "pi-tab-title · session titles that follow the actual work",
         "before": "Before — just the directory name; identical tabs look identical",
         "before_tabs": ["π - zeth-ai", "π - zeth-ai", "π - ymesh", "π - notes"],
         "before_note": "Two zeth-ai tabs: one fixing payments, one writing a plugin",
@@ -46,7 +46,7 @@ LANGS = {
     "zh": {
         "out": "terminal-tabs.zh.png",
         "title": "pi 的终端标签：装插件前 vs 装插件后",
-        "subtitle": "pi-session-autoname · session titles that follow the actual work",
+        "subtitle": "pi-tab-title · session titles that follow the actual work",
         "before": "装上之前 —— 目录名而已，同名就看不出区别",
         "before_tabs": ["π - zeth-ai", "π - zeth-ai", "π - ymesh", "π - 笔记"],
         "before_note": "两个 zeth-ai：一个在修支付、一个在写插件，标签长得一模一样",
@@ -113,7 +113,7 @@ def render(lang):
     bar_y = H - 90
     d.rounded_rectangle([56, bar_y, W - 56, bar_y + 62], radius=12, fill=PANEL)
     d.text((84, bar_y + 19), "$", font=f_mono, fill=GREEN)
-    d.text((116, bar_y + 17), "pi install git:github.com/zoran-xc/pi-session-autoname",
+    d.text((116, bar_y + 17), "pi install git:github.com/zoran-xc/pi-tab-title",
            font=f_mono, fill=FG)
 
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), s["out"])

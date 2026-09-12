@@ -1,5 +1,5 @@
 /**
- * pi-session-autoname 离线测试（不花 API 调用）
+ * pi-tab-title 离线测试（不花 API 调用）
  *
  * 用假的 pi / ctx / modelRegistry 驱动扩展，覆盖：首轮起名、改名节奏（空闲/每 N 轮）、
  * 话题迁移改名、不抖动、超长收敛、手动改名记入历史、强制刷新、摘要过滤工具链、
@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SRC = path.join(HERE, "..", "extensions", "session-autoname.ts");
+const SRC = path.join(HERE, "..", "extensions", "pi-tab-title.ts");
 
 // ── 隔离环境：假的 @earendil-works/pi-coding-agent（扩展只用 getAgentDir 一个值导入）
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "pi-autoname-test-"));
@@ -152,7 +152,7 @@ async function runTurn(ctx, turnIndex, message = agentMsg("ok")) {
 	await fire("agent_settled", {}, ctx);
 	await sleep(60);
 }
-const lastMarker = () => [...world.entries].reverse().find((e) => e.customType === "session-autoname")?.data;
+const lastMarker = () => [...world.entries].reverse().find((e) => e.customType === "pi-tab-title")?.data;
 
 // ═══ 场景 1：首轮起名（git 分支进上下文）
 console.log("\n场景 1 首轮起名");

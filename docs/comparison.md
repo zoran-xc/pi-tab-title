@@ -1,4 +1,4 @@
-# How pi-session-autoname compares
+# How pi-tab-title compares
 
 At least ten [pi](https://pi.dev) packages name sessions or set terminal titles. This page is an
 attempt at a fair map of the ones that overlap, based on reading their own READMEs (last checked
@@ -13,7 +13,7 @@ Every package in this space has to answer three questions:
 2. **How much can you bend it?** Nothing, a few settings, or a prompt you write yourself.
 3. **Where does the name show up?** Just the `/resume` list, or also the terminal tab/tmux pane.
 
-pi-session-autoname answers them as: *first message, then after idle gaps and every N turns*;
+pi-tab-title answers them as: *first message, then after idle gaps and every N turns*;
 *a markdown prompt*; *session name plus a templated terminal title*.
 
 ## The packages
@@ -25,12 +25,12 @@ pi-session-autoname answers them as: *first message, then after idle gaps and ev
 | [`@d3ara1n/pi-session-namer`](https://www.npmjs.com/package/@d3ara1n/pi-session-namer) | First prompt (side agent, +0.5–1 s) | Zero-config by design | — | `rename_session` tool so the main agent can name the session itself |
 | [`pi-session-namer`](https://www.npmjs.com/package/pi-session-namer) | First turn + every 4 turns | Format template, type list, language | — | Optional ≤16-char "progress" segment; lock/unlock commands |
 | [`pi-autoname`](https://www.npmjs.com/package/pi-autoname) | First turn + 10-minute cooldown | Model, cooldown, respect-manual-name | — | Renames only when the current name stops fitting |
-| [`pi-session-autoname` (roldan)](https://www.npmjs.com/package/pi-session-autoname) | Not detailed in its README | Not detailed | ✅ | Herdr tab renaming. **Same npm name as this project's repo — different author, unrelated code** |
+| [`pi-tab-title` (roldan)](https://www.npmjs.com/package/pi-tab-title) | Not detailed in its README | Not detailed | ✅ | Herdr tab renaming. **Same npm name as this project's repo — different author, unrelated code** |
 | [`@oipsanthony/pi-session-title`](https://www.npmjs.com/package/@oipsanthony/pi-session-title) | First turn + every 4 user turns | Model, period, `{title} {cwd}` template | ✅ templated | Syncs a Herdr pane; only runs in the TUI |
 | [`@eddiewang/pi-session-title`](https://www.npmjs.com/package/@eddiewang/pi-session-title) | After completed conversations | — | ✅ | Generated tmux window names |
 | [`@pi-archimedes/session-name`](https://www.npmjs.com/package/@pi-archimedes/session-name) | After the first exchange | — | — | — |
 | [`@pi-claudian/sync-title`](https://www.npmjs.com/package/@pi-claudian/sync-title) | On sync | — | — | Keeps Claudian conversation titles and pi session names in sync |
-| **pi-session-autoname (this repo)** | **First message**, then after >10 min idle, or every 5 turns | **Naming policy = a markdown prompt** | ✅ `{name} {project} {prev}` | Previous titles kept in parens; `@project` when you're on a different repo; interrupted turns marked "needs review" |
+| **pi-tab-title (this repo)** | **First message**, then after >10 min idle, or every 5 turns | **Naming policy = a markdown prompt** | ✅ `{name} {project} {prev}` | Previous titles kept in parens; `@project` when you're on a different repo; interrupted turns marked "needs review" |
 
 ## What is *not* unique to this package
 

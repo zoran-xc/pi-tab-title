@@ -1,16 +1,18 @@
-# pi-session-autoname
+# pi-tab-title
 
 <img src="assets/demo.gif" alt="pi session titles that follow the work" width="760">
 
 <img src="assets/terminal-tabs.png" alt="before vs after comparison" width="760">
 
-[![test](https://github.com/zoran-xc/pi-session-autoname/actions/workflows/test.yml/badge.svg)](https://github.com/zoran-xc/pi-session-autoname/actions/workflows/test.yml)
+[![test](https://github.com/zoran-xc/pi-tab-title/actions/workflows/test.yml/badge.svg)](https://github.com/zoran-xc/pi-tab-title/actions/workflows/test.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![pi-package](https://img.shields.io/badge/pi--package-blueviolet)
 
 Session titles for [pi](https://pi.dev) that keep up with the work. A pi package, one file, no dependencies.
 
 [English](README.md) · [中文](README.zh-CN.md)
+
+> Renamed from `pi-session-autoname` in v0.3.0 (the npm name was taken by an unrelated package). The old GitHub URL redirects, and your config is migrated automatically.
 
 ## The problem
 
@@ -22,16 +24,16 @@ that name into the terminal window title. What it never does is keep the name *t
 ## Install
 
 ```bash
-pi install git:github.com/zoran-xc/pi-session-autoname@v0.2.1
+pi install git:github.com/zoran-xc/pi-tab-title@v0.2.1
 ```
 
 Or for local development, point pi at the checkout instead:
 
 ```bash
-pi install /path/to/pi-session-autoname
+pi install /path/to/pi-tab-title
 ```
 
-Restart pi. Runtime state lives in `~/.pi/agent/session-autoname/` — **not** inside the package, so
+Restart pi. Runtime state lives in `~/.pi/agent/pi-tab-title/` — **not** inside the package, so
 `pi update` never wipes your config:
 
 | File | Purpose |
@@ -79,7 +81,7 @@ an enum of types, the whole naming policy is a markdown file you write:
 ```
 
 Preferences are exactly the thing that doesn't fit in an enum, so they live in a prompt. Edit
-`~/.pi/agent/session-autoname/naming-rules.md` and it takes effect on the next evaluation.
+`~/.pi/agent/pi-tab-title/naming-rules.md` and it takes effect on the next evaluation.
 
 ## Terminal title template
 
@@ -103,7 +105,7 @@ degrades into `π - foo - `. Set `titleTemplate` to `""` to leave the terminal t
 
 ## Configuration
 
-`~/.pi/agent/session-autoname/config.json`, hot-read (no restart):
+`~/.pi/agent/pi-tab-title/config.json`, hot-read (no restart):
 
 | Key | Default | Meaning |
 | --- | --- | --- |
@@ -151,7 +153,7 @@ At least ten pi packages do some flavour of this; these are the closest, based o
 | `pi-session-namer` | First turn + every 4 turns | Format template + type list + language | — |
 | `pi-autoname` | First turn + 10-minute cooldown | Model / cooldown / respect manual name | — |
 | `@oipsanthony/pi-session-title` | First turn + every 4 user turns | Model / period / `{title}{cwd}` template | ✅ templated |
-| **pi-session-autoname** | First turn + **>10 min idle** + every 5 turns | **Naming policy is a markdown prompt** | ✅ `{name}{project}{prev}` |
+| **pi-tab-title** | First turn + **>10 min idle** + every 5 turns | **Naming policy is a markdown prompt** | ✅ `{name}{project}{prev}` |
 
 Being straight about it: periodic re-evaluation is not unique to this package — `pi-session-namer`,
 `pi-autoname` and `@oipsanthony/pi-session-title` all re-check. The real differences are **what triggers**

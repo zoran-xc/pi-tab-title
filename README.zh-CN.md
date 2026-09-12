@@ -1,16 +1,18 @@
-# pi-session-autoname
+# pi-tab-title
 
 <img src="assets/demo.zh.gif" alt="pi 会话标题跟着工作走" width="760">
 
 <img src="assets/terminal-tabs.zh.png" alt="装插件前后对比" width="760">
 
-[![test](https://github.com/zoran-xc/pi-session-autoname/actions/workflows/test.yml/badge.svg)](https://github.com/zoran-xc/pi-session-autoname/actions/workflows/test.yml)
+[![test](https://github.com/zoran-xc/pi-tab-title/actions/workflows/test.yml/badge.svg)](https://github.com/zoran-xc/pi-tab-title/actions/workflows/test.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![pi-package](https://img.shields.io/badge/pi--package-blueviolet)
 
 给 [pi](https://pi.dev) 用的会话标题管理：标题跟着你实际在做的事走。一个单文件 pi 包，零依赖。
 
 [English](README.md) · [中文](README.zh-CN.md)
+
+> v0.3.0 起由 `pi-session-autoname` 改名为 `pi-tab-title`（npm 上那个名字是别人的包）。GitHub 旧地址会自动跳转，旧数据目录会自动迁移。
 
 ## 问题
 
@@ -19,16 +21,16 @@ pi 本来就能命名会话（`/name`、`--name`、`/resume` 里 <kbd>Ctrl</kbd>
 ## 安装
 
 ```bash
-pi install git:github.com/zoran-xc/pi-session-autoname@v0.2.1
+pi install git:github.com/zoran-xc/pi-tab-title@v0.2.1
 ```
 
 本地开发可以指向检出目录：
 
 ```bash
-pi install /path/to/pi-session-autoname
+pi install /path/to/pi-tab-title
 ```
 
-重启 pi 生效。运行期数据在 `~/.pi/agent/session-autoname/`，**不在包目录里**，所以 `pi update` 不会冲掉你的配置：
+重启 pi 生效。运行期数据在 `~/.pi/agent/pi-tab-title/`，**不在包目录里**，所以 `pi update` 不会冲掉你的配置：
 
 | 文件 | 作用 |
 | --- | --- |
@@ -69,7 +71,7 @@ pi install /path/to/pi-session-autoname
 - 任务没变就别改名，不要无意义抖动
 ```
 
-「怎么起名」本来就是人的偏好，不是几个枚举能穷尽的，所以它放在提示词里。改 `~/.pi/agent/session-autoname/naming-rules.md`，下次评估即生效。
+「怎么起名」本来就是人的偏好，不是几个枚举能穷尽的，所以它放在提示词里。改 `~/.pi/agent/pi-tab-title/naming-rules.md`，下次评估即生效。
 
 ## 终端标题模板
 
@@ -90,7 +92,7 @@ pi install /path/to/pi-session-autoname
 
 ## 配置
 
-`~/.pi/agent/session-autoname/config.json`，热读，不用重启：
+`~/.pi/agent/pi-tab-title/config.json`，热读，不用重启：
 
 | 键 | 默认 | 说明 |
 | --- | --- | --- |
@@ -137,7 +139,7 @@ npm 上至少有十个 pi 包在做类似的事，以下是最接近的几个，
 | `pi-session-namer` | 首轮 + 每 4 轮 | 格式模板 + 类型枚举 + 语言 | — |
 | `pi-autoname` | 首轮 + 10 分钟冷却 | 模型 / 冷却 / 是否尊重手动命名 | — |
 | `@oipsanthony/pi-session-title` | 首轮 + 每 4 个用户轮次 | 模型 / 周期 / `{title}{cwd}` 模板 | ✅ 模板化 |
-| **pi-session-autoname** | 首轮 + **空闲 >10 分钟回来** + 每 5 轮 | **命名策略就是一份 markdown 提示词** | ✅ `{name}{project}{prev}` |
+| **pi-tab-title** | 首轮 + **空闲 >10 分钟回来** + 每 5 轮 | **命名策略就是一份 markdown 提示词** | ✅ `{name}{project}{prev}` |
 
 说实话的部分：周期性重评估**不是**本插件独有 —— `pi-session-namer`、`pi-autoname`、`@oipsanthony/pi-session-title` 都会周期重评。真正的区别在**触发信号**（这里量的是**你**离开多久）、**留痕**（旧标题留在标签上）、以及**能改到什么程度**（提示词而不是旋钮）。它**没有** tmux / Herdr 集成、没有图形化配置，而且默认要求你写一份命名策略，不是开箱零配置。
 

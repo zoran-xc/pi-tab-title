@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-12
+
+### Changed
+
+- **项目改名**：`pi-session-autoname` → **`pi-tab-title`**。原因：npm 上的 `pi-session-autoname`
+  是另一位作者（roldan）的同类包，`pi.dev/packages/pi-session-autoname` 打开的是他的页面，搜索与收录都会被混淆。
+  GitHub 旧地址会自动重定向。
+- 安装命令相应变为 `pi install git:github.com/zoran-xc/pi-tab-title@v0.3.0`；npm 包名 `pi-tab-title`。
+
+### Added
+
+- **无缝迁移**：扩展会自动把旧数据目录 `~/.pi/agent/session-autoname/`（配置、命名规则、日志）
+  复制到 `~/.pi/agent/pi-tab-title/`；读取会话时同时认旧标记 `session-autoname`，已有会话的历史标题不丢。
+
 ## [0.2.2] - 2026-09-12
 
 ### Fixed

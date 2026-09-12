@@ -1,5 +1,5 @@
 /**
- * session-autoname —— 按对话内容自动维护 pi 会话标题
+ * pi-tab-title —— 按对话内容自动维护 pi 会话标题
  *
  * 做的事：
  *   1. 没有标题时（首轮）立即起名，按 naming-rules.md 里你写的命名习惯
@@ -11,9 +11,9 @@
  *   4. 名字写进 pi 的会话名 → pi 自动同步到终端窗口标题；
  *      若配了 titleTemplate，再用「名字 + 状态 + 非当前项目 + 旧标题」覆盖一次终端标题
  *
- * 配置：~/.pi/agent/session-autoname/config.json（改动即时生效，不用重启 pi）
- * 规则：~/.pi/agent/session-autoname/naming-rules.md（你写命名习惯）
- * 日志：~/.pi/agent/session-autoname/autoname.log（>256KB 自动截断）
+ * 配置：~/.pi/agent/pi-tab-title/config.json（改动即时生效，不用重启 pi）
+ * 规则：~/.pi/agent/pi-tab-title/naming-rules.md（你写命名习惯）
+ * 日志：~/.pi/agent/pi-tab-title/autoname.log（>256KB 自动截断）
  * 数据目录可用环境变量 PI_AUTONAME_HOME 覆盖。
  *
  * 手动控制：/autoname status | now | on | off | config | rules
@@ -27,10 +27,16 @@ import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil
 
 // 运行期数据放在 pi 的 agent 目录，而不是包目录里：
 // 包会被 pi update 重置，配置和命名习惯不能被冲掉。
-const DATA_DIR = process.env.PI_AUTONAME_HOME ?? path.join(getAgentDir(), "session-autoname");
+const DATA_DIR = process.env.PI_AUTONAME_HOME ?? path.join(getAgentDir(), "pi-tab-title");
+/** 改名前（≤ v0.2.2）的数据目录与托管标记，自动迁移/兼容，不丢配置与历史标题 */
+const LEGACY_DATA_DIR = process.env.PI_AUTONAME_HOME
+	? null
+	: path.join(getAgentDir(), "session-autoname");
 const CONFIG_PATH = path.join(DATA_DIR, "config.json");
 const LOG_PATH = path.join(DATA_DIR, "autoname.log");
-const MARKER = "session-autoname";
+const MARKER = "pi-tab-title";
+/** 早期版本写进会话的标记，读的时候也要认 */
+const LEGACY_MARKERS = ["session-autoname"];
 
 /** 模型偶尔会把占位词当标题吐回来，直接丢掉 */
 const PLACEHOLDER_TITLES = new Set(["none", "null", "未命名", "无", "无标题", "新会话", "untitled", "(无)", "（无）", "n/a"]);
@@ -146,6 +152,14 @@ const DEFAULT_RULES = `# 命名习惯（写给模型看，随便改）
 
 function ensureDefaults(): void {
 	try {
+		// 从旧目录一次性迁移：配置、命名规则、日志都带过来
+		if (LEGACY_DATA_DIR && !fs.existsSync(DATA_DIR) && fs.existsSync(LEGACY_DATA_DIR)) {
+			fs.mkdirSync(DATA_DIR, { recursive: true });
+			for (const name of ["config.json", "naming-rules.md", "autoname.log"]) {
+				const from = path.join(LEGACY_DATA_DIR, name);
+				if (fs.existsSync(from)) fs.copyFileSync(from, path.join(DATA_DIR, name));
+			}
+		}
 		fs.mkdirSync(DATA_DIR, { recursive: true });
 		if (!fs.existsSync(CONFIG_PATH)) {
 			fs.writeFileSync(CONFIG_PATH, `${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`, "utf8");
@@ -671,10 +685,13 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		trace(readConfig(), `session_start reason=${event.reason} hasUI=${ctx.hasUI}`);
 
 		const entries = ctx.sessionManager.getEntries() as unknown as LooseEntry[];
-		state.managed = entries.some((e) => e.type === "custom" && e.customType === MARKER);
+		state.managed = entries.some(
+			(e) => e.type === "custom" && (e.customType === MARKER || LEGACY_MARKERS.includes(e.customType ?? "")),
+		);
 		// 从最近一条托管标记里恢复状态与历史标题，这样重启/恢复后括号里还能看到之前干过什么
 		for (let i = entries.length - 1; i >= 0; i -= 1) {
-			if (entries[i]?.customType !== MARKER) continue;
+			const entryMarker = entries[i]?.customType;
+			if (entryMarker !== MARKER && !LEGACY_MARKERS.includes(entryMarker ?? "")) continue;
 			const data = entries[i]?.data as { status?: string; project?: string; prev?: unknown } | undefined;
 			if (typeof data?.status === "string") state.status = data.status;
 			if (typeof data?.project === "string") state.project = data.project;
