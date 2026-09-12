@@ -1,6 +1,8 @@
 # pi-session-autoname
 
-<img src="assets/terminal-tabs.zh.png" alt="装 pi-session-autoname 前后的 pi 终端标签对比" width="880">
+<img src="assets/demo.zh.gif" alt="pi 会话标题跟着工作走" width="760">
+
+<img src="assets/terminal-tabs.zh.png" alt="装插件前后对比" width="760">
 
 [![test](https://github.com/zoran-xc/pi-session-autoname/actions/workflows/test.yml/badge.svg)](https://github.com/zoran-xc/pi-session-autoname/actions/workflows/test.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -121,6 +123,9 @@ pi install /path/to/pi-session-autoname
 注意：手动 `/name` **不会**关掉扩展 —— 你起的名字会被记进历史、显示在括号里。想接管就用 `/autoname off`。
 
 ## 与同类插件的对比
+
+完整版（含十个包、「哪些不是我们独有」、按需求选型表）：**[docs/comparison.md](docs/comparison.md)**。精简版：
+
 
 npm 上至少有十个 pi 包在做类似的事，以下是最接近的几个，事实取自各自 README：
 

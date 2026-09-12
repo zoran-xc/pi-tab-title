@@ -1,7 +1,7 @@
 {
   "name": "@zoran-xc/pi-session-autoname",
   "version": "0.2.2",
-  "description": "Self-naming pi sessions: keeps the session title and terminal tab in sync with what you are actually working on.",
+  "description": "Self-naming pi sessions: the tab title tells you which session is doing what, and keeps up as the work moves. Naming policy is a markdown prompt, not a config enum.",
   "keywords": [
     "pi-package",
     "pi",
@@ -35,7 +35,7 @@
     "extensions": [
       "./extensions"
     ],
-    "image": "https://raw.githubusercontent.com/zoran-xc/pi-session-autoname/main/assets/terminal-tabs.png"
+    "image": "https://raw.githubusercontent.com/zoran-xc/pi-session-autoname/main/assets/demo.gif"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

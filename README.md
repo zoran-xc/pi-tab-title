@@ -1,6 +1,8 @@
 # pi-session-autoname
 
-<img src="assets/terminal-tabs.png" alt="pi terminal tabs before and after installing pi-session-autoname" width="880">
+<img src="assets/demo.gif" alt="pi session titles that follow the work" width="760">
+
+<img src="assets/terminal-tabs.png" alt="before vs after comparison" width="760">
 
 [![test](https://github.com/zoran-xc/pi-session-autoname/actions/workflows/test.yml/badge.svg)](https://github.com/zoran-xc/pi-session-autoname/actions/workflows/test.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -135,6 +137,9 @@ Note: a manual `/name` does **not** disable the extension — your name is recor
 shows up in parens. Use `/autoname off` if you want to take over.
 
 ## How it compares
+
+Full, fairness-checked version: **[docs/comparison.md](docs/comparison.md)** (all ten packages, what is *not* unique here, and a "picking one" table). Short version:
+
 
 At least ten pi packages do some flavour of this; these are the closest, based on their own READMEs:
 
