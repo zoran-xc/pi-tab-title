@@ -1,5 +1,5 @@
 {
-  "name": "pi-session-autoname",
+  "name": "@zoran-xc/pi-session-autoname",
   "version": "0.2.1",
   "description": "Self-naming pi sessions: keeps the session title and terminal tab in sync with what you are actually working on.",
   "keywords": [
@@ -7,7 +7,10 @@
     "pi",
     "pi-coding-agent",
     "session",
+    "session-name",
     "title",
+    "terminal-title",
+    "window-title",
     "extension"
   ],
   "license": "MIT",
@@ -19,7 +22,10 @@
   "type": "module",
   "files": [
     "extensions",
+    "assets",
     "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
@@ -28,9 +34,13 @@
   "pi": {
     "extensions": [
       "./extensions"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/zoran-xc/pi-session-autoname/main/assets/terminal-tabs.png"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
+  },
+  "bugs": {
+    "url": "https://github.com/zoran-xc/pi-session-autoname/issues"
   }
 }

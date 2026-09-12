@@ -1,0 +1,66 @@
+name: Bug report
+description: 报告一个可复现的问题
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前先跑一下 `/autoname status`，并把 `~/.pi/agent/session-autoname/autoname.log` 的最后几行带上 ——
+        里面的 `terminal="…"` 记录会显示终端标题实际被渲染成了什么，多数命名问题看这个就够了。
+  - type: input
+    id: pi-version
+    attributes:
+      label: pi 版本
+      description: "`pi --version` 的输出"
+      placeholder: "0.85.1"
+    validations:
+      required: true
+  - type: input
+    id: ext-version
+    attributes:
+      label: 本扩展版本
+      description: 安装时用的 tag 或 commit
+      placeholder: "v0.2.1"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: 系统与终端
+      description: 操作系统，以及终端（VS Code 集成终端 / iTerm2 / tmux …）
+      placeholder: "macOS 15, VS Code 集成终端"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 现象
+      description: 期望什么、实际发生了什么
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 新开一个会话
+        2. 发一条 …
+        3. 看到 …
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: 配置与命名规则
+      description: 贴 `~/.pi/agent/session-autoname/config.json`（可去掉无关项）与 `naming-rules.md`
+      render: json
+    validations:
+      required: false
+  - type: textarea
+    id: log
+    attributes:
+      label: 相关日志
+      description: "`~/.pi/agent/session-autoname/autoname.log` 的最后 20 行"
+      render: text
+    validations:
+      required: false
