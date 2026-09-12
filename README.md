@@ -59,7 +59,8 @@ pi -e /path/to/pi-session-autoname/extensions/session-autoname.ts
 占位符渲染为空时会自动收掳多余的分隔符和空括号（`π - {name} {status}` 在无状态时不会变成 `π - xx - `）。
 设为空字符串则完全不接管终端标题，用 pi 自己的 `π - <会话名> - <目录>`。
 
-> VS Code 集成终端默认不显示程序设的标题，需要 `"terminal.integrated.tabs.title": "${process}${separator}${sequence}"`。
+> VS Code 集成终端默认不显示程序设的标题，需要设 `"terminal.integrated.tabs.title": "${sequence}"`。
+> 不要再接 `${process}`——那样会在前面多出一段 `node - `，标签反而更长。
 
 ### 什么时候重新评估标题
 
