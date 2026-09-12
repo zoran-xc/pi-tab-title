@@ -40,7 +40,7 @@ Restart pi. Runtime state lives in `~/.pi/agent/session-autoname/` — **not** i
 
 ## What it does
 
-- **Names the session on turn 1**, then keeps it honest as the work drifts.
+- **Names the session the moment you send the first message**, then keeps it honest as the work drifts.
 - **Re-evaluates on a cadence instead of on every turn** — see below.
 - **Sends only conversation conclusions to the naming model**: user messages and assistant replies.
   Tool call arguments, tool output and thinking are never included, which keeps the request small and cheap.
@@ -55,7 +55,7 @@ Restart pi. Runtime state lives in `~/.pi/agent/session-autoname/` — **not** i
 
 | When | What happens |
 | --- | --- |
-| Session has no title yet | Named on turn 1 |
+| You send the **first message** of a new session | Named immediately — before the agent even replies (waiting for `agent_settled` would stall behind a long first run) |
 | You were away for more than `idleRenameAfterMs` (10 min by default) | Re-evaluated when that next turn settles |
 | Continuous conversation | Re-evaluated every `updateEveryTurns` (5 by default) turns |
 

@@ -347,6 +347,38 @@ world.modelCalls.length = 0;
 await runTurn(ctx, 0);
 check("off 后不再请求模型", world.completions.length === before16);
 
+// ═══ 场景 17：首条消息即刻起名（回归：原来要等 agent 自跑完 settle 才起名）
+console.log("\n场景 17 首条消息即刻起名");
+writeConfig({ updateEveryTurns: 5, minMsBetweenUpdates: 0 });
+world.name = undefined;
+world.modelCalls.length = 0;
+world.completions.length = 0;
+const freshEntries = []; // 会话记录里还没有任何消息（before_agent_start 早于入库）
+ctx = makeCtx(freshEntries);
+world.modelCalls.push({ text: '{"title":"支付修","status":"进行中","project":"","changed":true}' });
+await fire("session_start", { reason: "new" }, ctx);
+await fire("before_agent_start", { prompt: "帮我修 zeth 的支付回调验签" }, ctx);
+await sleep(60);
+check("agent_settled 之前就已经起好名", world.name === "支付修", `got ${world.name ?? "(未命名)"}`);
+check("用 prompt 当摘要种子", world.completions[0]?.messages[0].content[0].text.includes("支付回调验签"));
+await runTurn(ctx, 0);
+check("这一轮收尾不再重复请求", world.completions.length === 1, `completions=${world.completions.length}`);
+
+// ═══ 场景 18：首轮命名失败后，后续轮仍会重试
+console.log("\n场景 18 首轮失败后继续重试");
+world.name = undefined;
+world.modelCalls.length = 0;
+world.completions.length = 0;
+ctx = makeCtx([]);
+world.modelCalls.push({ throw: "boom" });
+await fire("session_start", { reason: "new" }, ctx);
+await fire("before_agent_start", { prompt: "先随便聊聊" }, ctx);
+await sleep(60);
+check("第一次失败没有名字", world.name === undefined, `got ${world.name ?? "(未命名)"}`);
+world.modelCalls.push({ text: '{"title":"重试成功","status":"进行中","project":"","changed":true}' });
+await runTurn(ctx, 0);
+check("后续轮重试成功", world.name === "重试成功", `got ${world.name ?? "(未命名)"}`);
+
 fs.rmSync(ROOT, { recursive: true, force: true });
 console.log(`\n${failed === 0 ? "全部通过 ✅" : `${failed} 项失败 ❌`}`);
 process.exit(failed === 0 ? 0 : 1);

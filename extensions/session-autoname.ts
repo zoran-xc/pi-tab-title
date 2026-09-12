@@ -301,6 +301,8 @@ type State = {
 	project: string;
 	/** 历史标题，旧的在前 */
 	prevTitles: string[];
+	/** 最近一条用户 prompt：会话里没内容可摘要时拿来兜底 */
+	lastPrompt: string;
 	gitBranch: string;
 };
 
@@ -318,6 +320,7 @@ function freshState(): State {
 		status: "",
 		project: "",
 		prevTitles: [],
+		lastPrompt: "",
 		gitBranch: "",
 	};
 }
@@ -552,7 +555,7 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 
 	// ── 命名主流程
 
-	async function runRename(ctx: ExtensionContext, force: boolean): Promise<void> {
+	async function runRename(ctx: ExtensionContext, force: boolean, seedPrompt?: string): Promise<void> {
 		const cfg = readConfig();
 		if (!cfg.enabled || state.disabled) return;
 		if (cfg.skipWhenNoUI && !ctx.hasUI) {
@@ -565,8 +568,11 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		}
 
 		const digest = buildDigest(ctx, cfg);
-		trace(cfg, `run: force=${force} turns=${state.turns} digest=${digest.length} chars`);
-		if (!digest) return;
+		// 会话里没内容可摘要时（首条消息尚未入库 / 重试）用最近的 prompt 兜底
+		const seed = seedPrompt ?? state.lastPrompt;
+		const effectiveDigest = digest || (seed ? `[用户] ${clip(seed, cfg.perMessageChars)}` : "");
+		trace(cfg, `run: force=${force} turns=${state.turns} digest=${digest.length} seed=${seedPrompt ? "yes" : "no"}`);
+		if (!effectiveDigest) return;
 
 		const model = resolveModel(ctx);
 		if (!model) {
@@ -580,7 +586,7 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		const current = pi.getSessionName();
 		trace(cfg, `calling model ${model.provider}/${model.id}`);
 		try {
-			let result = await askModel(ctx, cfg, model, digest, current);
+			let result = await askModel(ctx, cfg, model, effectiveDigest, current);
 			trace(cfg, `model returned title="${result?.title ?? "(null)"}"`);
 			if (!result) {
 				log("skip: unparseable model output");
@@ -589,7 +595,7 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 			// 超长先给模型一次机会自我压缩，仍超长才硬截断
 			if (charCount(result.title) > cfg.maxChars) {
 				const stricter = `上一次输出 "${result.title}" 有 ${charCount(result.title)} 个字符，超过 ${cfg.maxChars} 的限制。这次必须严格 ≤ ${cfg.maxChars} 个字符，牺牲次要信息也要保住「项目 + 当前动作」。`;
-				const retried = await askModel(ctx, cfg, model, digest, current, stricter);
+				const retried = await askModel(ctx, cfg, model, effectiveDigest, current, stricter);
 				if (retried && charCount(retried.title) <= charCount(result.title)) result = retried;
 			}
 			if (charCount(result.title) > cfg.maxChars) {
@@ -626,11 +632,11 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		}
 	}
 
-	function schedule(ctx: ExtensionContext, delay: number, force: boolean): void {
+	function schedule(ctx: ExtensionContext, delay: number, force: boolean, seedPrompt?: string): void {
 		clearTimer();
 		timer = setTimeout(() => {
 			timer = null;
-			void runRename(ctx, force);
+			void runRename(ctx, force, seedPrompt);
 		}, delay);
 		if (typeof timer === "object" && "unref" in timer) timer.unref?.();
 	}
@@ -643,7 +649,7 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		return state.turns % Math.max(1, readConfig().updateEveryTurns) === 0;
 	}
 
-	function maybeRename(ctx: ExtensionContext, force: boolean): void {
+	function maybeRename(ctx: ExtensionContext, force: boolean, seedPrompt?: string): void {
 		const cfg = readConfig();
 		if (!cfg.enabled || state.disabled) {
 			trace(cfg, `maybeRename: skip (enabled=${cfg.enabled} disabled=${state.disabled})`);
@@ -655,7 +661,7 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		}
 		const wait = cfg.minMsBetweenUpdates - (Date.now() - state.lastRunAt);
 		trace(cfg, `maybeRename: schedule in ${Math.max(0, wait)}ms (turns=${state.turns})`);
-		schedule(ctx, !force && wait > 0 ? wait : 0, force);
+		schedule(ctx, !force && wait > 0 ? wait : 0, force, seedPrompt);
 	}
 
 	// ── 生命周期
@@ -697,16 +703,27 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		log(`external rename: "${name}" (recorded as previous title)`);
 	});
 
+	pi.on("before_agent_start", async (event, ctx) => {
+		// 首次起名不等 agent 跑完：agent_settled 可能要多等几十轮（agent 自跑），
+		// 而用户发出第一条消息时就有 prompt 可用了。
+		if (event.prompt?.trim()) state.lastPrompt = event.prompt;
+		if (!event.prompt?.trim() || pi.getSessionName()?.trim()) return;
+		const cfg = readConfig();
+		if (!cfg.enabled || state.disabled) return;
+		trace(cfg, "first prompt: naming immediately");
+		schedule(ctx, 0, true, event.prompt);
+	});
+
 	pi.on("turn_start", async () => {
 		// 上一轮结束到我这次开口之间隔了很久 → 这一轮收尾时重新评估标题
 		const cfg = readConfig();
-		if (state.lastTurnEndedAt && Date.now() - state.lastTurnEndedAt > cfg.idleRenameAfterMs) {
+		if (state.lastTurnEndedAt > 0 && Date.now() - state.lastTurnEndedAt > cfg.idleRenameAfterMs) {
 			state.idleResume = true;
 			trace(cfg, `idle resume: ${Math.round((Date.now() - state.lastTurnEndedAt) / 60000)} 分钟`);
 		}
 	});
 
-	pi.on("turn_end", async (event) => {
+	pi.on("turn_end", async (event, ctx) => {
 		state.turns = Math.max(state.turns, (event.turnIndex ?? 0) + 1);
 		state.lastTurnEndedAt = Date.now();
 		const message = event.message as { role?: string; stopReason?: string } | undefined;
@@ -714,6 +731,8 @@ export default function sessionAutoname(pi: ExtensionAPI): void {
 		if (message?.role === "assistant" && (message.stopReason === "aborted" || message.stopReason === "error")) {
 			state.interrupted = true;
 		}
+		// 还没名字（首轮命名失败或被跳过）→ 继续重试，受 minMsBetweenUpdates 节流
+		if (!pi.getSessionName()?.trim()) maybeRename(ctx, false);
 	});
 
 	pi.on("agent_settled", async (_event, ctx) => {

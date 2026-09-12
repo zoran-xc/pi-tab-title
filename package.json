@@ -1,6 +1,6 @@
 {
   "name": "@zoran-xc/pi-session-autoname",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Self-naming pi sessions: keeps the session title and terminal tab in sync with what you are actually working on.",
   "keywords": [
     "pi-package",
