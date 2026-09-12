@@ -21,7 +21,7 @@ pi 本来就能命名会话（`/name`、`--name`、`/resume` 里 <kbd>Ctrl</kbd>
 ## 安装
 
 ```bash
-pi install git:github.com/zoran-xc/pi-tab-title@v0.2.1
+pi install git:github.com/zoran-xc/pi-tab-title@v0.3.0
 ```
 
 本地开发可以指向检出目录：

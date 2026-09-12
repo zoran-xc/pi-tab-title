@@ -24,7 +24,7 @@ that name into the terminal window title. What it never does is keep the name *t
 ## Install
 
 ```bash
-pi install git:github.com/zoran-xc/pi-tab-title@v0.2.1
+pi install git:github.com/zoran-xc/pi-tab-title@v0.3.0
 ```
 
 Or for local development, point pi at the checkout instead:
